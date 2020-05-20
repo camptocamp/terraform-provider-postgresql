@@ -18,6 +18,8 @@ const (
 	extSchemaAttr   = "schema"
 	extVersionAttr  = "version"
 	extDatabaseAttr = "database"
+	createQuery     = "create_query"
+	deleteQuery     = "delete_query"
 )
 
 func resourcePostgreSQLExtension() *schema.Resource {
@@ -56,6 +58,18 @@ func resourcePostgreSQLExtension() *schema.Resource {
 				ForceNew:    true,
 				Description: "Sets the database to add the extension to",
 			},
+			createQuery: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Query to create the extension",
+				Default:     "CREATE EXTENSION IF NOT EXISTS \"%s\"",
+			},
+			deleteQuery: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Query to delete the extension",
+				Default:     "DROP EXTENSION \"%s\"",
+			},
 		},
 	}
 }
@@ -75,8 +89,8 @@ func resourcePostgreSQLExtensionCreate(d *schema.ResourceData, meta interface{})
 
 	extName := d.Get(extNameAttr).(string)
 
-	b := bytes.NewBufferString("CREATE EXTENSION IF NOT EXISTS ")
-	fmt.Fprint(b, pq.QuoteIdentifier(extName))
+	req := d.Get(createQuery).(string)
+	b := bytes.NewBufferString(fmt.Sprintf(req, extName))
 
 	if v, ok := d.GetOk(extSchemaAttr); ok {
 		fmt.Fprint(b, " SCHEMA ", pq.QuoteIdentifier(v.(string)))
@@ -226,7 +240,7 @@ func resourcePostgreSQLExtensionDelete(d *schema.ResourceData, meta interface{})
 	}
 	defer deferredRollback(txn)
 
-	sql := fmt.Sprintf("DROP EXTENSION %s", pq.QuoteIdentifier(extName))
+	sql := fmt.Sprintf(d.Get(deleteQuery).(string), extName)
 	if _, err := txn.Exec(sql); err != nil {
 		return err
 	}
